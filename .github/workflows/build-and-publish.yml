@@ -1,0 +1,141 @@
+name: SwiftPortfolioProject — Build and Publish
+
+on:
+  pull_request:
+    types: [ closed ]
+    branches: [ main, dev ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Guard: only continue if the PR was merged
+  # A closed-but-not-merged PR will stop here
+  # ─────────────────────────────────────────────
+  check-merged:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: PR is merged — continuing
+        run: echo "PR was merged into ${{ github.event.pull_request.base.ref }}. Proceeding with build."
+
+  # ─────────────────────────────────────────────
+  # Extract version from the AppInfo.swift constant.
+  # No build/toolchain needed — a plain grep reads the
+  # `public static let version = "x.y.z"` line.
+  # ─────────────────────────────────────────────
+  extract-version:
+    runs-on: ubuntu-latest
+    needs: check-merged
+    outputs:
+      app-version: ${{ steps.get-version.outputs.APP_VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Extract version from AppInfo.swift
+        id: get-version
+        run: |
+          FILE="Sources/SwiftPortfolioProject/AppInfo.swift"
+          VERSION=$(grep -Eo 'static let version[[:space:]]*=[[:space:]]*"[^"]+"' "$FILE" \
+            | sed -E 's/.*"([^"]+)".*/\1/')
+
+          echo "Extracted version: $VERSION"
+
+          if [ -z "$VERSION" ]; then
+            echo "Error: Could not extract version from $FILE"
+            exit 1
+          fi
+
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────────────────────
+  # Build and publish the Docker image to GHCR
+  # Tags: version, version+sha, latest (or -dev)
+  # ─────────────────────────────────────────────
+  build-and-publish:
+    runs-on: ubuntu-latest
+    needs: extract-version
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      APP_VERSION: ${{ needs.extract-version.outputs.app-version }}
+      BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Lowercase the full image path once — Docker requires it.
+      # All subsequent steps reference this output instead of IMAGE_NAME directly.
+      - name: Resolve lowercase image name
+        id: image
+        run: |
+          IMAGE=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      # Resolve tags based on target branch:
+      #   main  → 1.2.3, 1.2.3-sha-abc1234, latest
+      #   dev   → 1.2.3-dev, 1.2.3-dev-sha-abc1234, latest-dev
+      - name: Resolve image tags
+        id: resolve-tags
+        run: |
+          IMAGE="${{ steps.image.outputs.IMAGE }}"
+          VERSION="${{ env.APP_VERSION }}"
+          SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          SHORT_SHA="${SHA::7}"
+          BRANCH="${{ env.BASE_BRANCH }}"
+
+          if [ "$BRANCH" = "main" ]; then
+            TAGS="${IMAGE}:${VERSION},${IMAGE}:${VERSION}-sha-${SHORT_SHA},${IMAGE}:latest"
+          else
+            TAGS="${IMAGE}:${VERSION}-dev,${IMAGE}:${VERSION}-dev-sha-${SHORT_SHA},${IMAGE}:latest-dev"
+          fi
+
+          echo "Resolved tags: $TAGS"
+          echo "TAGS=$TAGS" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata for Docker labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.IMAGE }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.resolve-tags.outputs.TAGS }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Registry-based layer cache persists between runs. Note: the
+          # Dockerfile's `--mount=type=cache` (SPM/.build) is a BuildKit cache
+          # mount and is NOT exported here, so the release compile still runs
+          # from scratch each time — Swift static builds are slow (~10–20 min).
+          cache-from: type=registry,ref=${{ steps.image.outputs.IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image.outputs.IMAGE }}:buildcache,mode=max
+
+      - name: Build summary
+        run: |
+          echo "### SwiftPortfolioProject Image Published 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ env.BASE_BRANCH }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ env.APP_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.resolve-tags.outputs.TAGS }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
