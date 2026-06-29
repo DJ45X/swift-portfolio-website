@@ -1,4 +1,5 @@
 import Fluent
+import FluentPostgresDriver
 import FluentSQLiteDriver
 import Foundation
 import Leaf
@@ -15,11 +16,15 @@ func configure(_ app: Application) async throws {
     // Serve static assets (CSS, JS) from the /Public folder.
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
-    // Database. In-memory SQLite keeps local development fast and dependency-free
-    // on Apple Silicon (rebuilt + re-seeded each launch). To persist data for
-    // deployment, set the environment variable SQLITE_FILE=1 (or swap the line
-    // below for `.file("db.sqlite")`).
-    if Environment.get("SQLITE_FILE") != nil {
+    // Database selection, in priority order:
+    //   1. PostgreSQL (production) — used when DATABASE_URL is set, or when the
+    //      DATABASE_HOST/PORT/USERNAME/PASSWORD/NAME variables are provided.
+    //   2. File-backed SQLite — used when SQLITE_FILE=1, persisting to db.sqlite.
+    //   3. In-memory SQLite (default) — fast, dependency-free local development
+    //      and testing (rebuilt + re-seeded each launch).
+    if let postgresURL = postgresDatabaseURL() {
+        app.databases.use(try .postgres(url: postgresURL), as: .psql)
+    } else if Environment.get("SQLITE_FILE") != nil {
         app.databases.use(DatabaseConfigurationFactory.sqlite(.file("db.sqlite")), as: .sqlite)
     } else {
         app.databases.use(DatabaseConfigurationFactory.sqlite(.memory), as: .sqlite)
@@ -42,6 +47,27 @@ func configure(_ app: Application) async throws {
 
     // register routes
     try routes(app)
+}
+
+/// Resolves a PostgreSQL connection URL from the environment, or returns `nil`
+/// when no PostgreSQL configuration is present (so the app falls back to SQLite).
+///
+/// A full `DATABASE_URL` takes precedence. Otherwise, a URL is assembled from the
+/// individual `DATABASE_*` variables, which is convenient when credentials are
+/// injected separately (e.g. by Docker Compose).
+private func postgresDatabaseURL() -> String? {
+    if let url = Environment.get("DATABASE_URL") {
+        return url
+    }
+
+    guard let host = Environment.get("DATABASE_HOST") else { return nil }
+
+    let port = Environment.get("DATABASE_PORT") ?? "5432"
+    let username = Environment.get("DATABASE_USERNAME") ?? "vapor"
+    let password = Environment.get("DATABASE_PASSWORD") ?? ""
+    let database = Environment.get("DATABASE_NAME") ?? "vapor"
+
+    return "postgres://\(username):\(password)@\(host):\(port)/\(database)"
 }
 
 /// Ensures the app's working directory contains the `Resources` and `Public`

@@ -1,0 +1,56 @@
+# Production deployment compose file.
+#
+# Runs the pre-built image pulled from GitHub Container Registry (GHCR)
+# against a PostgreSQL database. Intended to run on your VPS alongside the
+# cloudflared tunnel container that fronts the public traffic.
+#
+# Configuration is read from a .env file in this directory (see .env.example
+# below in the README). At minimum you must set REGISTRY_IMAGE and
+# DATABASE_PASSWORD.
+#
+#   Pull image:  docker compose -f docker-compose.prod.yml pull
+#   Start:       docker compose -f docker-compose.prod.yml up -d
+#   Stop:        docker compose -f docker-compose.prod.yml down
+#   Logs:        docker compose -f docker-compose.prod.yml logs -f app
+#
+
+x-shared_environment: &shared_environment
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_HOST: db
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: ${DATABASE_NAME:-portfolio}
+  DATABASE_USERNAME: ${DATABASE_USERNAME:-portfolio}
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
+
+services:
+  app:
+    image: ${REGISTRY_IMAGE:?REGISTRY_IMAGE is required, e.g. ghcr.io/<owner>/swift-portfolio-project:latest}
+    environment:
+      <<: *shared_environment
+    depends_on:
+      db:
+        condition: service_healthy
+    # Published on localhost only; the cloudflared tunnel reaches the app from
+    # the host (or attach this service to the tunnel's network — see README).
+    ports:
+      - '127.0.0.1:8080:8080'
+    restart: unless-stopped
+    command: ["serve", "--env", "production", "--hostname", "0.0.0.0", "--port", "8080"]
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-portfolio}
+      POSTGRES_USER: ${DATABASE_USERNAME:-portfolio}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-portfolio} -d ${DATABASE_NAME:-portfolio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db_data:
