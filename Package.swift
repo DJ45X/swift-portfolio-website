@@ -17,6 +17,9 @@ let package = Package(
         .package(url: "https://github.com/vapor/leaf.git", from: "4.5.1"),
         // 🔵 Non-blocking, event-driven networking for Swift. Used for custom executors
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.0"),
+        // 🔐 Argon2 password hashing (wraps the reference C implementation).
+        // The package publishes no version tags, so we pin to the main branch.
+        .package(url: "https://github.com/tmthecoder/Argon2Swift.git", branch: "main"),
     ],
     targets: [
         .executableTarget(
@@ -28,6 +31,7 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "Argon2Swift", package: "Argon2Swift"),
             ],
             swiftSettings: swiftSettings
         ),

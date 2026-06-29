@@ -1,0 +1,29 @@
+#extend("base"):
+#export("content"):
+    <div class="auth">
+        <div class="auth-card">
+            <h1 class="auth-card__title">Create admin account</h1>
+            <p class="auth-card__hint">Token verified. Choose the credentials you'll log in with.</p>
+            #if(error):
+                <p class="form-error">#(error)</p>
+            #endif
+            <form method="post" action="/admin/setup" class="form">
+                <input type="hidden" name="token" value="#(token)">
+                <div class="form-field">
+                    <label for="username">Username</label>
+                    <input id="username" name="username" type="text" autocomplete="username" required>
+                </div>
+                <div class="form-field">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="new-password" required>
+                </div>
+                <div class="form-field">
+                    <label for="confirmPassword">Confirm password</label>
+                    <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required>
+                </div>
+                <button class="btn" type="submit">Create account</button>
+            </form>
+        </div>
+    </div>
+#endexport
+#endextend

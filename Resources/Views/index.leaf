@@ -1,12 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
+#extend("base"):
+#export("content"):
+    <header class="page-header">
+        <h1 class="page-header__title">The Journal</h1>
+        <p class="page-header__subtitle">Notes, experiments, and micro-projects from learning Swift.</p>
+    </header>
 
-  <title>#(title)</title>
-</head>
-
-<body>
-  <h1>#(title)</h1>
-</body>
-</html>
+    #if(count(entries) == 0):
+        <p class="empty-state">No entries yet — check back soon.</p>
+    #else:
+        <section class="card-grid">
+            #for(entry in entries):
+                <article class="card">
+                    <time class="card__date">#(entry.date)</time>
+                    <h2 class="card__title">
+                        <a class="card__link" href="/entries/#(entry.slug)">#(entry.title)</a>
+                    </h2>
+                    <p class="card__excerpt">#(entry.excerpt)</p>
+                    <span class="card__more">Read entry →</span>
+                </article>
+            #endfor
+        </section>
+    #endif
+#endexport
+#endextend

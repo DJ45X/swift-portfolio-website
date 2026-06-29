@@ -1,0 +1,24 @@
+#extend("base"):
+#export("content"):
+    <div class="auth">
+        <div class="auth-card">
+            <h1 class="auth-card__title">First-time setup</h1>
+            <p class="auth-card__hint">
+                A one-time bootstrap token has been written to
+                <code>admin_bootstrap_token.txt</code> in the project root.
+                Open it from your terminal and paste the value below to continue.
+            </p>
+            #if(error):
+                <p class="form-error">#(error)</p>
+            #endif
+            <form method="post" action="/admin/setup" class="form">
+                <div class="form-field">
+                    <label for="token">Bootstrap token</label>
+                    <input id="token" name="token" type="text" autocomplete="off" spellcheck="false" required>
+                </div>
+                <button class="btn" type="submit">Verify token</button>
+            </form>
+        </div>
+    </div>
+#endexport
+#endextend

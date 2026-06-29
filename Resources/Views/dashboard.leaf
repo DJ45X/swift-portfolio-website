@@ -1,0 +1,101 @@
+#extend("base"):
+#export("content"):
+    <div class="dashboard">
+        <div class="dashboard__head">
+            <h1 class="dashboard__title">Dashboard</h1>
+            <form method="post" action="/logout">
+                <button class="btn btn--ghost" type="submit">Log out (#(username))</button>
+            </form>
+        </div>
+
+        #if(published):
+            <p class="form-success">
+                Published. <a href="/entries/#(published)">View entry →</a>
+            </p>
+        #endif
+        #if(deleted):
+            <p class="form-success">Entry “#(deleted)” was deleted.</p>
+        #endif
+        #if(error):
+            <p class="form-error">#(error)</p>
+        #endif
+
+        <section class="panel">
+            <h2 class="panel__title">New journal entry</h2>
+            <form method="post" action="/admin/entries" class="form">
+                <div class="form-field">
+                    <label for="title">Title</label>
+                    <input id="title" name="title" type="text" required>
+                </div>
+                <div class="form-field">
+                    <label for="excerpt">Excerpt</label>
+                    <textarea id="excerpt" name="excerpt" rows="2" required></textarea>
+                </div>
+                <div class="form-field">
+                    <label for="showcaseHTML">Micro-project showcase (HTML — optional)</label>
+                    <textarea id="showcaseHTML" name="showcaseHTML" rows="6" class="form-field__mono" spellcheck="false"></textarea>
+                </div>
+                <div class="form-field">
+                    <label for="body">Content</label>
+                    <textarea id="body" name="body" rows="12" required></textarea>
+                </div>
+                <button class="btn" type="submit">Publish entry</button>
+            </form>
+        </section>
+
+        #if(count(entries) > 0):
+            <section class="panel">
+                <h2 class="panel__title">Recent entries</h2>
+                <ul class="dash-list">
+                    #for(entry in entries):
+                        <li class="dash-list__item">
+                            <a class="dash-list__title" href="/entries/#(entry.slug)">#(entry.title)</a>
+                            <div class="dash-list__meta">
+                                <span class="dash-list__date">#(entry.date)</span>
+                                <!-- Real per-row form: the delete target lives in the
+                                     HTML, so it works even if JS doesn't. -->
+                                <form
+                                    class="row-delete-form"
+                                    method="post"
+                                    action="/admin/entries/#(entry.slug)/delete"
+                                    data-delete-form
+                                >
+                                    <button
+                                        type="submit"
+                                        class="row-delete"
+                                        aria-label="Delete entry"
+                                        title="Delete entry"
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M3 6h18"></path>
+                                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                                            <path d="M10 11v6M14 11v6"></path>
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </li>
+                    #endfor
+                </ul>
+            </section>
+        #endif
+    </div>
+
+    <!-- Confirmation modal, shared by every row's delete button. -->
+    <div class="modal" id="delete-modal" hidden>
+        <div class="modal__backdrop" data-close></div>
+        <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+            <h2 class="modal__title" id="delete-modal-title">Delete this entry?</h2>
+            <p class="modal__text">
+                “<span id="delete-modal-name"></span>” will be permanently removed. This can't be undone.
+            </p>
+            <div class="modal__actions">
+                <button type="button" class="btn btn--keep" data-close autofocus>Cancel</button>
+                <button type="button" class="btn btn--confirm-delete" id="delete-modal-confirm">Yes, delete</button>
+            </div>
+        </div>
+    </div>
+    <script src="/delete.js" defer></script>
+#endexport
+#endextend

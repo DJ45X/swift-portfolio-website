@@ -1,0 +1,27 @@
+#extend("base"):
+#export("content"):
+    <article class="entry">
+        <a class="entry__back" href="/">← All entries</a>
+
+        <header class="entry__header">
+            <time class="entry__date">#(entry.date)</time>
+            <h1 class="entry__title">#(entry.title)</h1>
+        </header>
+
+        <!-- Micro-project showcase: an embedded element, syntax sample, or
+             interactive UI concept authored alongside the entry. -->
+        <section class="showcase" aria-label="Micro-project showcase">
+            <span class="showcase__tag">Micro-project</span>
+            <div class="showcase__stage">
+                #(entry.showcaseHTML)
+            </div>
+        </section>
+
+        <div class="entry__body">
+            #for(paragraph in entry.paragraphs):
+                <p>#(paragraph)</p>
+            #endfor
+        </div>
+    </article>
+#endexport
+#endextend
